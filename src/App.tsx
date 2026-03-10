@@ -19,6 +19,7 @@ import {
   ExternalLink
 } from 'lucide-react';
 import { BRANDS, BrandNode } from './constants';
+import { Analytics } from '@vercel/analytics/react';
 
 const DynamicBackground = lazy(() => import('./components/DynamicBackground').then(module => ({ default: module.DynamicBackground })));
 
@@ -380,6 +381,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+      <Analytics />
     </div>
   );
 }
