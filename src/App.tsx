@@ -18,6 +18,7 @@ import {
   Maximize2,
   ExternalLink
 } from 'lucide-react';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 import { BRANDS, BrandNode } from './constants';
 
 const DynamicBackground = lazy(() => import('./components/DynamicBackground').then(module => ({ default: module.DynamicBackground })));
@@ -28,7 +29,15 @@ const GameboyNode = memo(({ brand, isSelected, onClick }: { brand: BrandNode, is
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
-<CONTROL_A><CONTROL_C>      tabIndex={0}
+      onClick();
+    }
+  };
+
+  return (
+    <motion.div
+      onClick={onClick}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
       className={`relative flex-shrink-0 w-64 h-80 rounded-2xl cursor-pointer transition-[transform,box-shadow] duration-500 overflow-hidden focus:outline-none focus:ring-4 focus:ring-white/40 ${
         isSelected ? 'ring-4 ring-white/20 scale-105' : 'hover:scale-105'
       }`}
@@ -380,6 +389,7 @@ export default function App() {
           </motion.div>
         )}
       </AnimatePresence>
+      <SpeedInsights />
     </div>
   );
 }
