@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, memo, Suspense, lazy } from 'react';
 import { motion, AnimatePresence, useScroll, useTransform } from 'motion/react';
 import { 
   ChevronRight, 
@@ -15,17 +15,22 @@ import {
   Wifi, 
   Signal,
   Volume2,
-  Maximize2
+  Maximize2,
+  ExternalLink
 } from 'lucide-react';
 import { BRANDS, BrandNode } from './constants';
 
-const GameboyNode = ({ brand, isSelected, onClick }: { brand: BrandNode, isSelected: boolean, onClick: () => void }) => {
-  return (
-    <motion.div
-      layoutId={`node-${brand.id}`}
-      onClick={onClick}
-      className={`relative flex-shrink-0 w-64 h-80 rounded-2xl cursor-pointer transition-all duration-500 overflow-hidden ${
-        isSelected ? 'ring-4 ring-white/20 scale-105' : 'hover:scale-102'
+const DynamicBackground = lazy(() => import('./components/DynamicBackground').then(module => ({ default: module.DynamicBackground })));
+
+const GameboyNode = memo(({ brand, isSelected, onClick }: { brand: BrandNode, isSelected: boolean, onClick: () => void }) => {
+  
+  // Facilitate seamless keyboard navigation to ensure maximum accessibility
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+<CONTROL_A><CONTROL_C>      tabIndex={0}
+      className={`relative flex-shrink-0 w-64 h-80 rounded-2xl cursor-pointer transition-[transform,box-shadow] duration-500 overflow-hidden focus:outline-none focus:ring-4 focus:ring-white/40 ${
+        isSelected ? 'ring-4 ring-white/20 scale-105' : 'hover:scale-105'
       }`}
       style={{ backgroundColor: brand.color }}
     >
@@ -33,17 +38,33 @@ const GameboyNode = ({ brand, isSelected, onClick }: { brand: BrandNode, isSelec
       <div className="absolute inset-0 bg-black/10 pointer-events-none" />
       
       {/* Screen Area */}
-      <div className="absolute top-6 left-6 right-6 bottom-24 bg-[#8bac0f] rounded-sm border-4 border-[#306230]/30 flex flex-col items-center justify-center p-4 overflow-hidden shadow-inner">
-        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none bg-[radial-gradient(circle,transparent_20%,#000_20%,#000_40%,transparent_40%,transparent_60%,#000_60%,#000_80%,transparent_80%)] bg-[length:4px_4px]" />
+      <div 
+        className="absolute top-6 left-6 right-6 bottom-24 rounded-sm border-4 border-[#306230]/30 flex flex-col items-center justify-center p-4 overflow-hidden shadow-inner bg-cover bg-center group"
+        style={{ 
+          backgroundColor: brand.color,
+          backgroundImage: brand.imageUrl ? `url(${brand.imageUrl})` : 'none'
+        }}
+      >
+        {/* Dark overlay to ensure the frosted glass pops */}
+        <div className="absolute inset-0 bg-black/20 group-hover:bg-black/40 transition-colors duration-500" />
         
+        <div className="absolute top-0 left-0 w-full h-full opacity-20 pointer-events-none bg-[radial-gradient(circle,transparent_20%,#000_20%,#000_40%,transparent_40%,transparent_60%,#000_60%,#000_80%,transparent_80%)] bg-[length:4px_4px]" />
+        
+        {/* Optimized Animation: Only run when in view */}
         <motion.div 
-          animate={{ y: [0, -2, 0] }}
+          whileInView={{ y: [0, -2, 0] }}
+          viewport={{ once: false, margin: "0px" }}
           transition={{ duration: 2, repeat: Infinity }}
-          className="text-[#0f380f] font-mono text-center"
+          className="relative z-10 flex flex-col items-center text-center bg-white/90 backdrop-blur-md p-5 rounded-2xl border border-white/20 shadow-2xl w-full max-w-[95%] transform group-hover:scale-105 transition-transform duration-500"
         >
-          <div className="mb-2">{brand.icon}</div>
-          <div className="text-lg leading-tight font-bold uppercase tracking-tighter">{brand.name}</div>
-          <div className="text-[10px] opacity-70">{brand.subtitle}</div>
+          <div className="mb-2 text-black">{brand.icon}</div>
+          <div className="text-2xl md:text-3xl leading-none font-display font-black uppercase tracking-tighter text-black">{brand.name}</div>
+          <div className="text-[10px] font-bold uppercase tracking-widest text-black/60 mt-1">{brand.subtitle}</div>
+          
+          {/* Interactive Prompt */}
+          <div className="mt-4 px-4 py-1.5 rounded-full bg-black text-[9px] font-bold uppercase tracking-widest text-white animate-pulse shadow-lg">
+            Tap to Explore
+          </div>
         </motion.div>
       </div>
 
@@ -60,46 +81,67 @@ const GameboyNode = ({ brand, isSelected, onClick }: { brand: BrandNode, isSelec
           <div className="w-6 h-2 rounded-full bg-black/20 rotate-[-25deg]" />
         </div>
       </div>
-
-      {/* Brand Label Overlay */}
-      <div className="absolute top-2 right-4 text-[10px] font-bold uppercase tracking-widest text-white/40">
-        MTI-OS v1.0
-      </div>
     </motion.div>
   );
-};
+});
+
+GameboyNode.displayName = 'GameboyNode';
 
 export default function App() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const selectedBrand = BRANDS.find(b => b.id === selectedId);
 
-  const handleShare = () => {
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 3000);
+  };
+
+  const handleShare = async () => {
+    const shareData = {
+      title: 'ENTER THE MTI UNIVERSE',
+      text: 'Explore the future of culture, music, and digital innovation in the MTI Universe.',
+      url: window.location.href, // Dynamically use the current URL (important for when deployed to a custom domain)
+    };
+
     if (navigator.share) {
-      navigator.share({
-        title: 'MEET THE INNOVATORS Universe',
-        text: 'Explore the MTI Universe by displayMRKTNG',
-        url: window.location.href,
-      });
+      try {
+        await navigator.share(shareData);
+      } catch (err) {
+        console.error('Error sharing:', err);
+      }
+    } else {
+      // Fallback: Copy to clipboard
+      try {
+        await navigator.clipboard.writeText(shareData.url);
+        showToast('Link copied to clipboard!');
+      } catch (err) {
+        console.error('Failed to copy:', err);
+        showToast('Failed to copy link.');
+      }
     }
   };
 
   return (
     <div className="relative min-h-screen w-full bg-[#050505] font-sans selection:bg-white selection:text-black">
-      {/* Immersive Disney-style Environmental Background */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] rounded-full bg-emerald-500/10 blur-[120px]" />
-        <div className="absolute bottom-[-10%] right-[-10%] w-[50%] h-[50%] rounded-full bg-purple-500/10 blur-[150px]" />
-        <div className="absolute top-[20%] right-[10%] w-[30%] h-[30%] rounded-full bg-blue-500/5 blur-[100px]" />
-        
-        {/* Subtle Grid Overlay */}
-        <div className="absolute inset-0 opacity-[0.03] bg-[linear-gradient(to_right,#808080_1px,transparent_1px),linear-gradient(to_bottom,#808080_1px,transparent_1px)] bg-[size:40px_40px]" />
-      </div>
+      <Suspense fallback={null}>
+        <DynamicBackground />
+      </Suspense>
 
       {/* Status Bar (Google Efficiency) */}
       <header className="fixed top-0 left-0 right-0 h-14 px-6 flex items-center justify-between z-50 glass-panel border-none bg-transparent">
         <div className="flex items-center gap-4">
-          <div className="text-sm font-bold tracking-tighter uppercase">displayMRKTNG</div>
+          <div className="flex items-center gap-2">
+            <motion.div 
+              animate={{ opacity: [1, 0.4, 1] }}
+              transition={{ duration: 2, repeat: Infinity }}
+              className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)]"
+            />
+            <span className="text-[10px] font-bold tracking-[0.2em] text-emerald-500 uppercase">Live</span>
+          </div>
+          <a href="https://instagram.com/displayMRKTNG" target="_blank" rel="noopener noreferrer" className="text-sm font-bold tracking-tighter uppercase hover:text-white/80 transition-colors">displayMRKTNG</a>
           <div className="h-4 w-[1px] bg-white/20" />
           <div className="text-[10px] font-mono opacity-50 uppercase tracking-widest">MTI Universe</div>
         </div>
@@ -122,7 +164,7 @@ export default function App() {
             animate={{ opacity: 1, y: 0 }}
             className="text-6xl md:text-8xl lg:text-9xl font-display font-bold tracking-tighter leading-[0.85] uppercase mb-4"
           >
-            Meet the<br />Innovators
+            Enter the<br />MTI Universe
           </motion.h1>
           <motion.p 
             initial={{ opacity: 0 }}
@@ -135,42 +177,17 @@ export default function App() {
           </motion.p>
         </div>
 
-        {/* Arcade Style Horizontal Menu */}
-        <div className="relative group">
-          <div 
-            ref={scrollContainerRef}
-            className="flex gap-6 overflow-x-auto pb-12 pt-4 hide-scrollbar snap-x snap-mandatory scroll-smooth"
-          >
-            {BRANDS.map((brand) => (
-              <div key={brand.id} className="snap-center">
-                <GameboyNode 
-                  brand={brand} 
-                  isSelected={selectedId === brand.id}
-                  onClick={() => setSelectedId(brand.id)}
-                />
-              </div>
-            ))}
-            {/* Spacer for scroll end */}
-            <div className="flex-shrink-0 w-24" />
-          </div>
-
-          {/* Scroll Indicators */}
-          <div className="absolute top-1/2 -translate-y-1/2 -left-4 md:-left-8 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button 
-              onClick={() => scrollContainerRef.current?.scrollBy({ left: -300, behavior: 'smooth' })}
-              className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-colors"
-            >
-              <ChevronLeft size={24} />
-            </button>
-          </div>
-          <div className="absolute top-1/2 -translate-y-1/2 -right-4 md:-right-8 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button 
-              onClick={() => scrollContainerRef.current?.scrollBy({ left: 300, behavior: 'smooth' })}
-              className="p-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 hover:bg-white/20 transition-colors"
-            >
-              <ChevronRight size={24} />
-            </button>
-          </div>
+        {/* Vertical Arcade Style Menu */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8 pb-24">
+          {BRANDS.map((brand) => (
+            <div key={brand.id} className="flex justify-center">
+              <GameboyNode 
+                brand={brand} 
+                isSelected={selectedId === brand.id}
+                onClick={() => setSelectedId(brand.id)}
+              />
+            </div>
+          ))}
         </div>
 
         {/* Brand Details Overlay (Apple Arcade Style) */}
@@ -191,8 +208,11 @@ export default function App() {
                 <div className="grid md:grid-cols-2 h-full">
                   {/* Visual Side */}
                   <div 
-                    className="relative h-64 md:h-auto flex flex-col items-center justify-center p-12"
-                    style={{ backgroundColor: selectedBrand.color }}
+                    className="relative h-64 md:h-auto flex flex-col items-center justify-center p-12 bg-cover bg-center"
+                    style={{ 
+                      backgroundColor: selectedBrand.color,
+                      backgroundImage: selectedBrand.imageUrl ? `linear-gradient(to bottom, rgba(0,0,0,0.3), rgba(0,0,0,0.8)), url(${selectedBrand.imageUrl})` : 'none'
+                    }}
                   >
                     <div className="absolute top-6 left-6 text-[10px] font-bold uppercase tracking-widest text-white/40">
                       SYSTEM_ACTIVE // {selectedBrand.category}
@@ -244,10 +264,38 @@ export default function App() {
                     </div>
 
                     <div className="flex flex-col gap-3">
-                      <button className="w-full py-4 rounded-2xl bg-white text-black font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2">
-                        Enter Experience <ChevronRight size={18} />
-                      </button>
-                      <div className="flex gap-3">
+                      {selectedBrand.link ? (
+                        <a 
+                          href={selectedBrand.link}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="w-full py-4 rounded-2xl bg-white text-black font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2"
+                        >
+                          Enter Experience <ExternalLink size={18} />
+                        </a>
+                      ) : (
+                        <button className="w-full py-4 rounded-2xl bg-white text-black font-bold uppercase tracking-widest hover:bg-zinc-200 transition-colors flex items-center justify-center gap-2 opacity-50 cursor-not-allowed">
+                          Coming Soon <ChevronRight size={18} />
+                        </button>
+                      )}
+                      
+                      {selectedBrand.secondaryLinks && (
+                        <div className="flex gap-3">
+                          {selectedBrand.secondaryLinks.map((sl, idx) => (
+                            <a 
+                              key={idx}
+                              href={sl.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex-1 py-3 rounded-2xl bg-white/10 border border-white/20 text-[10px] font-bold uppercase tracking-widest hover:bg-white/20 transition-colors flex items-center justify-center gap-2"
+                            >
+                              {sl.name} <ExternalLink size={14} />
+                            </a>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex gap-3 mt-2">
                         <button 
                           onClick={handleShare}
                           className="flex-1 py-4 rounded-2xl bg-white/5 border border-white/10 font-bold uppercase tracking-widest hover:bg-white/10 transition-colors flex items-center justify-center gap-2"
@@ -318,6 +366,20 @@ export default function App() {
           />
         ))}
       </div>
+
+      {/* Toast Notification */}
+      <AnimatePresence>
+        {toastMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: 50, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 20, scale: 0.9 }}
+            className="fixed bottom-24 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 bg-white text-black font-bold uppercase tracking-widest text-xs rounded-full shadow-2xl"
+          >
+            {toastMessage}
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
